@@ -5,10 +5,11 @@ use hashmap_ext::UpdateOr;
 
 use std::cmp::{Ordering, max};
 use std::collections::{HashMap, BinaryHeap};
-use std::io;
 
 use Node::*;
 
+mod bitwriter;
+use bitwriter::BitWriter;
 
 pub type EncodingTable<T> = HashMap<u8, T>;
 
@@ -26,50 +27,6 @@ enum Node<T> {
   , Leaf { item: T
          , weight: usize
          }
-}
-
-struct BitWriter<'a, W>
-where W: io::Write
-    , W: 'a { out: &'a mut W
-            , buf: u8
-            , n: u8
-            }
-
-impl<'a, W: io::Write> BitWriter<'a, W> {
-    fn flush(&mut self) -> io::Result<()> {
-        self.empty_buf();
-        self.out.flush()
-    }
-
-    #[inline] fn empty_buf(&mut self) {
-        let byte = &[self.buf << (8 - self.n)];
-        self.n = 0;
-        self.buf = 0;
-        self.out.write(byte)
-            .expect("Could not flush buffer!");
-    }
-
-    fn write_bit(&mut self, bit: bool) {
-        self.buf <<= 1;
-        if bit { self.buf |= 1; }
-        self.n += 1;
-        if self.n == 8 {
-            self.empty_buf()
-        }
-    }
-
-    fn write_byte(&mut self, byte: u8) {
-        if self.n == 0 {
-            // if we're aligned on a byte boundary we can just write the byte
-            self.out.write(&[byte])
-                .expect("Could not write byte!");
-        } else {
-            // otherwise, we have to write out the byte one bit at a time
-            for bit in 0..8 {
-                self.write_bit((1 << bit) & byte == 1);
-            }
-        }
-    }
 }
 
 /// Constructs a Huffman tree for a list of xs
