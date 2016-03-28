@@ -48,4 +48,19 @@ impl<'a, W: Write> BitWriter<'a, W> {
             }
         }
     }
+
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
+        if self.n == 0 {
+            // if we're aligned on a byte boundary we can just write the byte
+            self.out.write(bytes)
+                .expect("Could not write bytes!");
+        } else {
+            // otherwise, we have to write out the byte one bit at a time
+            for byte in bytes {
+                for bit in 0..8 {
+                    self.write_bit((1 << bit) & byte == 1);
+                }
+            }
+        }
+    }
 }
