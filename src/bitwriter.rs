@@ -2,7 +2,7 @@
 
 use std::io::{Write, Result};
 
-struct BitWriter<'a, W>
+pub struct BitWriter<'a, W>
 where W: Write
     , W: 'a { out: &'a mut W
             , buf: u8
@@ -10,7 +10,11 @@ where W: Write
             }
 
 impl<'a, W: Write> BitWriter<'a, W> {
-    fn flush(&mut self) -> Result<()> {
+    pub fn new(w: &'a mut W) -> BitWriter<'a, W> {
+        BitWriter { out: w, buf: 0, n: 0 }
+    }
+
+    pub fn flush(&mut self) -> Result<()> {
         self.empty_buf();
         self.out.flush()
     }
@@ -23,7 +27,7 @@ impl<'a, W: Write> BitWriter<'a, W> {
             .expect("Could not flush buffer!");
     }
 
-    fn write_bit(&mut self, bit: bool) {
+    pub fn write_bit(&mut self, bit: bool) {
         self.buf <<= 1;
         if bit { self.buf |= 1; }
         self.n += 1;
@@ -32,7 +36,7 @@ impl<'a, W: Write> BitWriter<'a, W> {
         }
     }
 
-    fn write_byte(&mut self, byte: u8) {
+    pub fn write_byte(&mut self, byte: u8) {
         if self.n == 0 {
             // if we're aligned on a byte boundary we can just write the byte
             self.out.write(&[byte])
