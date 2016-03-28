@@ -5,7 +5,7 @@ use std::collections::{HashMap, BinaryHeap};
 use Node::*;
 
 extern crate hashmap_ext;
-use hashmap_ext::Update;
+use hashmap_ext::UpdateOr;
 
 pub type EncodingTable<T> = HashMap<u8, T>;
 
@@ -28,12 +28,34 @@ enum Node<T> {
 /// Constructs a Huffman tree for a list of xs
 fn huffman_tree<T>(xs: &[T]) -> Node<T>
 where T: Eq + std::hash::Hash {
+
+    // Loop through the input list and count the frequencies of each
+    // unique element.
     let mut frequencies: HashMap<T, usize> = HashMap::new();
     for x in xs.iter() {
-        frequencies.update(x, |v: &mut usize| { v += 1;}, 1);
+        // If the item is already in the hash map, increase the frequency
+        // count by one.
+        frequencies.update_or(x, |v: &mut usize| { v += 1;}, 1);
     }
-    unimplemented!()
 
+    // Insert each element into a priority queue, using our `Ordering`
+    // implementation to ensure that the most frequent elements have
+    // the highest priority.
+    let mut pqueue: BinaryHeap<Node<T>> = BinaryHeap::new();
+    for (item, freq) in freq.iter() {
+        pqueue.push(Node<T>::leaf(item, freq));
+    }
+
+    // While there are two or more items in the queue, pop the two
+    // lowest-weighted nodes from the queue, and create a new branch node with
+    // those nodes as children, and then push it back into the queue.
+    while (pqueue.len() >= 2) {
+        pqueue.push(Node<T>::branch( pqueue.pop().unwrap()
+                                   , pqueue.pop().unwrap() ));
+    }
+
+    // Return the last item remaining in the queue - the root node of the tree.
+    pqueue.pop().unwrap()
 }
 
 impl<T> Node<T> {
