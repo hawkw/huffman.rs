@@ -1,11 +1,14 @@
 #![feature(box_patterns, box_syntax)]
 
-use std::cmp::{Ordering, max};
-use std::collections::{HashMap, BinaryHeap};
-use Node::*;
-
 extern crate hashmap_ext;
 use hashmap_ext::UpdateOr;
+
+use std::cmp::{Ordering, max};
+use std::collections::{HashMap, BinaryHeap};
+use std::io;
+
+use Node::*;
+
 
 pub type EncodingTable<T> = HashMap<u8, T>;
 
@@ -25,9 +28,54 @@ enum Node<T> {
          }
 }
 
+struct BitWriter<'a, W>
+where W: io::Write
+    , W: 'a { out: &'a mut W
+            , buf: u8
+            , n: u8
+            }
+
+impl<'a, W: io::Write> BitWriter<'a, W> {
+    fn flush(&mut self) -> io::Result<()> {
+        self.empty_buf();
+        self.out.flush()
+    }
+
+    #[inline] fn empty_buf(&mut self) {
+        let byte = &[self.buf << (8 - self.n)];
+        self.n = 0;
+        self.buf = 0;
+        self.out.write(byte)
+            .expect("Could not flush buffer!");
+    }
+
+    fn write_bit(&mut self, bit: bool) {
+        self.buf <<= 1;
+        if bit { self.buf |= 1; }
+        self.n += 1;
+        if self.n == 8 {
+            self.empty_buf()
+        }
+    }
+
+    fn write_byte(&mut self, byte: u8) {
+        if self.n == 0 {
+            // if we're aligned on a byte boundary we can just write the byte
+            self.out.write(&[byte])
+                .expect("Could not write byte!");
+        } else {
+            // otherwise, we have to write out the byte one bit at a time
+            for bit in 0..8 {
+                self.write_bit((1 << bit) & byte == 1);
+            }
+        }
+    }
+}
+
 /// Constructs a Huffman tree for a list of xs
 fn huffman_tree<T>(xs: &[T]) -> Node<T>
-where T: Eq + std::hash::Hash {
+where T: Eq + std::hash::Hash
+    , T: Copy {
 
     // Loop through the input list and count the frequencies of each
     // unique element.
@@ -35,23 +83,24 @@ where T: Eq + std::hash::Hash {
     for x in xs.iter() {
         // If the item is already in the hash map, increase the frequency
         // count by one.
-        frequencies.update_or(x, |v: &mut usize| { v += 1;}, 1);
+        frequencies.update_or(x, |v: &mut usize| { *v += 1;}, 1);
     }
 
     // Insert each element into a priority queue, using our `Ordering`
     // implementation to ensure that the most frequent elements have
     // the highest priority.
     let mut pqueue: BinaryHeap<Node<T>> = BinaryHeap::new();
-    for (item, freq) in freq.iter() {
-        pqueue.push(Node<T>::leaf(item, freq));
+    for (item, freq) in frequencies.into_iter() {
+        pqueue.push(Node::<T>::leaf(item, freq));
     }
 
     // While there are two or more items in the queue, pop the two
     // lowest-weighted nodes from the queue, and create a new branch node with
     // those nodes as children, and then push it back into the queue.
-    while (pqueue.len() >= 2) {
-        pqueue.push(Node<T>::branch( pqueue.pop().unwrap()
-                                   , pqueue.pop().unwrap() ));
+    while pqueue.len() >= 2 {
+        let item_1 = pqueue.pop().unwrap();
+        let item_2 = pqueue.pop().unwrap();
+        pqueue.push(Node::<T>::branch(item_1, item_2));
     }
 
     // Return the last item remaining in the queue - the root node of the tree.
